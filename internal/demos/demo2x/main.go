@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
 	"github.com/yylego/kratos-gorm/gormkratos"
 	"github.com/yylego/must"

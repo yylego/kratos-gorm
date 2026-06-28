@@ -3,7 +3,7 @@
 package errorspb
 
 import (
-	errors "github.com/go-kratos/kratos/v2/errors"
+	errors "github.com/go-kratos/kratos/v3/errors"
 	newerk "github.com/yylego/kratos-errors/errorskratos/newerk"
 )
 

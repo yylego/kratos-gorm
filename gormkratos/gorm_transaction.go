@@ -9,7 +9,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/yylego/erero"
 	"gorm.io/gorm"
 )

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yylego/erero"
