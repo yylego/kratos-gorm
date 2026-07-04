@@ -1,0 +1,4 @@
+version: v2
+modules:
+  - path: errorspb
+  - path: proto3ps

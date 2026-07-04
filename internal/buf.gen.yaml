@@ -1,0 +1,10 @@
+version: v2
+inputs:
+  - directory: errorspb
+plugins:
+  - local: ["go", "run", "google.golang.org/protobuf/cmd/protoc-gen-go@latest"]
+    out: errorspb
+    opt: paths=source_relative
+  - local: ["go", "run", "github.com/yylego/kratos-errgen/cmd/protoc-gen-orzkratos-errors@latest"]
+    out: errorspb
+    opt: paths=source_relative
