@@ -15,7 +15,6 @@ import (
 	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/yylego/erero"
 	"github.com/yylego/kratos-errors/errorskratos/must/erkrequire"
 	"github.com/yylego/kratos-gorm/gormkratos"
 	"github.com/yylego/kratos-gorm/internal/errorspb"
@@ -31,7 +30,7 @@ import (
 func setupTestDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:db-%s?mode=memory&cache=shared", uuid.New().String())
 	db := rese.P1(gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Warn),
 	}))
 	t.Cleanup(func() {
 		must.Done(rese.P1(db.DB()).Close())
@@ -79,11 +78,14 @@ func TestTransactionBusinessError(t *testing.T) {
 	ctx := context.Background()
 
 	erk, err := gormkratos.Transaction(ctx, db, func(db *gorm.DB) *errors.Error {
-		return errorspb.ErrorServerDbError("business logic error: %s", erero.New("validation failed"))
+		return errorspb.ErrorBadRequest("student name is blank")
 	})
 	require.Error(t, err)
 	erkrequire.Error(t, erk)
-	require.True(t, errorspb.IsServerDbError(erk))
+	require.True(t, errorspb.IsBadRequest(erk))
+	// err is the business error itself, with no wrapping in between
+	// err 就是这个业务错误本身, 中间没有再包一层
+	require.Same(t, erk, err)
 }
 
 // TestTransactionTimeout tests context timeout handling
@@ -172,7 +174,7 @@ func TestTransactionNested(t *testing.T) {
 			if erk != nil {
 				return erk
 			}
-			return errorspb.ErrorServerDbError("nested transaction failed: %v", err)
+			return errorspb.ErrorServerDbTransactionError("nested transaction failed: %v", err)
 		}
 
 		return nil
@@ -225,7 +227,7 @@ func TestTransactionNestedRollback(t *testing.T) {
 			if erk != nil {
 				return erk
 			}
-			return errorspb.ErrorServerDbError("nested transaction failed: %v", err)
+			return errorspb.ErrorServerDbTransactionError("nested transaction failed: %v", err)
 		}
 
 		return nil
@@ -274,14 +276,14 @@ func TestTransactionDifferentErrors(t *testing.T) {
 func TestTransactionWithTxOptions(t *testing.T) {
 	db := setupTestDB(t)
 
-	// Account represents test data
-	// Account 表示测试数据
-	type Account struct {
-		ID      uint `gorm:"primarykey"`     // Auto-increment PK // 自增PK
-		Balance int  `gorm:"column:balance"` // Balance in cents // 账户余额(分)
+	// Article represents test data
+	// Article 表示测试数据
+	type Article struct {
+		ID    uint `gorm:"primarykey"`   // Auto-increment PK // 自增PK
+		Views int  `gorm:"column:views"` // Page views // 阅读数
 	}
 
-	require.NoError(t, db.AutoMigrate(&Account{}))
+	require.NoError(t, db.AutoMigrate(&Article{}))
 
 	ctx := context.Background()
 
@@ -293,9 +295,9 @@ func TestTransactionWithTxOptions(t *testing.T) {
 	}
 
 	erk, err := gormkratos.Transaction(ctx, db, func(db *gorm.DB) *errors.Error {
-		account := &Account{Balance: 10000}
-		if err := db.Create(account).Error; err != nil {
-			return errorspb.ErrorServerDbError("failed to create account: %v", err)
+		article := &Article{Views: 10000}
+		if err := db.Create(article).Error; err != nil {
+			return errorspb.ErrorServerDbError("failed to create article: %v", err)
 		}
 		return nil
 	}, txOptions)
@@ -305,6 +307,108 @@ func TestTransactionWithTxOptions(t *testing.T) {
 	// Check data was inserted
 	// 检查数据已插入
 	var count int64
-	require.NoError(t, db.Model(&Account{}).Count(&count).Error)
+	require.NoError(t, db.Model(&Article{}).Count(&count).Error)
 	require.Equal(t, int64(1), count)
+}
+
+// newTxErk turns a failure of the transaction itself into the project's own Kratos error
+// newTxErk 把事务本身的失败包成项目自己的 Kratos 错误
+func newTxErk(ctx context.Context, cause error) *errors.Error {
+	return errorspb.ErrorServerDbTransactionError("transaction failed: %v", cause)
+}
+
+// TestTransactRun tests TransactRun, which returns one Kratos error
+// TestTransactRun 测试只返回一个 Kratos 错误的 TransactRun
+func TestTransactRun(t *testing.T) {
+	// Guest represents simple test data
+	// Guest 表示简单的测试数据
+	type Guest struct {
+		ID   uint   `gorm:"primarykey"`           // Auto-increment PK // 自增PK
+		Name string `gorm:"column:name;not null"` // Guest name // 访客名称
+	}
+
+	t.Run("success", func(t *testing.T) {
+		db := setupTestDB(t)
+		require.NoError(t, db.AutoMigrate(&Guest{}))
+
+		erk := gormkratos.TransactRun(context.Background(), db, func(db *gorm.DB) *errors.Error {
+			if err := db.Create(&Guest{Name: "alice"}).Error; err != nil {
+				return errorspb.ErrorServerDbError("failed to create guest: %v", err)
+			}
+			return nil
+		}, newTxErk)
+		erkrequire.NoError(t, erk)
+
+		var count int64
+		require.NoError(t, db.Model(&Guest{}).Count(&count).Error)
+		require.Equal(t, int64(1), count)
+	})
+
+	t.Run("run-error-comes-back-as-it-is", func(t *testing.T) {
+		db := setupTestDB(t)
+		require.NoError(t, db.AutoMigrate(&Guest{}))
+
+		erk := gormkratos.TransactRun(context.Background(), db, func(db *gorm.DB) *errors.Error {
+			if err := db.Create(&Guest{Name: "bob"}).Error; err != nil {
+				return errorspb.ErrorServerDbError("failed to create guest: %v", err)
+			}
+			return errorspb.ErrorBadRequest("business validation failed")
+		}, newTxErk)
+		erkrequire.Error(t, erk)
+		require.True(t, errorspb.IsBadRequest(erk))
+
+		var count int64
+		require.NoError(t, db.Model(&Guest{}).Count(&count).Error)
+		require.Equal(t, int64(0), count)
+	})
+
+	t.Run("transaction-fault-goes-through-new-erk", func(t *testing.T) {
+		db := setupTestDB(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		// newErk gets the same ctx and the cause of the transaction fault
+		// newErk 拿到同一个 ctx 和事务失败的原因
+		var erkCtx context.Context
+		var erkCause error
+		erk := gormkratos.TransactRun(ctx, db, func(db *gorm.DB) *errors.Error {
+			time.Sleep(100 * time.Millisecond) // Exceed timeout // 超过超时时间
+			return nil
+		}, func(ctx context.Context, cause error) *errors.Error {
+			erkCtx, erkCause = ctx, cause
+			return newTxErk(ctx, cause)
+		})
+		erkrequire.Error(t, erk)
+		require.True(t, errorspb.IsServerDbTransactionError(erk))
+		require.Equal(t, ctx, erkCtx)
+		require.Error(t, erkCause)
+	})
+
+	t.Run("nested-run-error-rolls-back-both", func(t *testing.T) {
+		db := setupTestDB(t)
+		require.NoError(t, db.AutoMigrate(&Guest{}))
+
+		ctx := context.Background()
+
+		erk := gormkratos.TransactRun(ctx, db, func(db *gorm.DB) *errors.Error {
+			if err := db.Create(&Guest{Name: "chloe"}).Error; err != nil {
+				return errorspb.ErrorServerDbError("failed to create guest: %v", err)
+			}
+
+			// Nested TransactRun: the business error comes back as it is, newTxErk stays unused
+			// 嵌套的 TransactRun: 业务错误原样返回, 用不到 newTxErk
+			return gormkratos.TransactRun(ctx, db, func(db *gorm.DB) *errors.Error {
+				if err := db.Create(&Guest{Name: "dave"}).Error; err != nil {
+					return errorspb.ErrorServerDbError("failed to create guest: %v", err)
+				}
+				return errorspb.ErrorBadRequest("nested validation failed")
+			}, newTxErk)
+		}, newTxErk)
+		erkrequire.Error(t, erk)
+		require.True(t, errorspb.IsBadRequest(erk))
+
+		var count int64
+		require.NoError(t, db.Model(&Guest{}).Count(&count).Error)
+		require.Equal(t, int64(0), count)
+	})
 }

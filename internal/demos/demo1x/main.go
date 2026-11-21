@@ -42,26 +42,14 @@ func main() {
 	erk := Transaction(ctx, db, func(db *gorm.DB) *errors.Error {
 		admin := &Admin{Name: "Alice"}
 		if err := db.Create(admin).Error; err != nil {
-			return ErrorServerDbError("create failed: %v", err)
+			return errors.Newf(500, "DB_ERROR", "create failed: %v", err)
 		}
 		zaplog.LOG.Debug("Created admin", zap.Uint("id", admin.ID), zap.String("name", admin.Name))
 		return nil
 	})
 	if erk != nil {
-		zaplog.LOG.Error("Error", zap.Error(erk))
+		zaplog.LOG.Error("Create admin failed", zap.Error(erk))
 	}
-}
-
-// ErrorServerDbError creates Kratos database operation errors
-// ErrorServerDbError 创建 Kratos 数据库操作错误
-func ErrorServerDbError(format string, args ...interface{}) *errors.Error {
-	return errors.New(500, "DB_ERROR", fmt.Sprintf(format, args...))
-}
-
-// ErrorServerDbTransactionError creates Kratos transaction-level errors
-// ErrorServerDbTransactionError 创建 Kratos 事务级错误
-func ErrorServerDbTransactionError(format string, args ...interface{}) *errors.Error {
-	return errors.New(500, "TRANSACTION_ERROR", fmt.Sprintf(format, args...))
 }
 
 // Transaction wraps gormkratos.Transaction with single-error-return pattern
@@ -75,7 +63,7 @@ func Transaction(ctx context.Context, db *gorm.DB, run func(db *gorm.DB) *errors
 		if erk != nil {
 			return erk
 		}
-		return ErrorServerDbTransactionError("transaction failed: %v", err)
+		return errors.Newf(500, "TRANSACTION_ERROR", "transaction failed: %v", err)
 	}
 	return nil
 }

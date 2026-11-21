@@ -17,27 +17,27 @@ func IsUnknown(err error) bool {
 }
 
 // 内部异常，内部崩溃是 UNKNOWN 500，这里默认值也定义为 UNKNOWN 500，认为这是最佳策略
-func ErrorUnknown(format string, args ...interface{}) *errors.Error {
+func ErrorUnknown(format string, args ...any) *errors.Error {
 	return kratoserrors.NewError(500, ErrorReason_UNKNOWN, format, args...)
 }
 func IsBadRequest(err error) bool {
 	return kratoserrors.IsError(err, ErrorReason_BAD_REQUEST, 400)
 }
 
-func ErrorBadRequest(format string, args ...interface{}) *errors.Error {
+func ErrorBadRequest(format string, args ...any) *errors.Error {
 	return kratoserrors.NewError(400, ErrorReason_BAD_REQUEST, format, args...)
 }
 func IsServerDbError(err error) bool {
 	return kratoserrors.IsError(err, ErrorReason_SERVER_DB_ERROR, 500)
 }
 
-func ErrorServerDbError(format string, args ...interface{}) *errors.Error {
+func ErrorServerDbError(format string, args ...any) *errors.Error {
 	return kratoserrors.NewError(500, ErrorReason_SERVER_DB_ERROR, format, args...)
 }
 func IsServerDbTransactionError(err error) bool {
 	return kratoserrors.IsError(err, ErrorReason_SERVER_DB_TRANSACTION_ERROR, 500)
 }
 
-func ErrorServerDbTransactionError(format string, args ...interface{}) *errors.Error {
+func ErrorServerDbTransactionError(format string, args ...any) *errors.Error {
 	return kratoserrors.NewError(500, ErrorReason_SERVER_DB_TRANSACTION_ERROR, format, args...)
 }

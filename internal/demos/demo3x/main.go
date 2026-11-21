@@ -43,32 +43,20 @@ func main() {
 	erk := Transaction(ctx, db, func(db *gorm.DB) *errors.Error {
 		product := &Product{Name: "Laptop", Price: 5000}
 		if err := db.Create(product).Error; err != nil {
-			return ErrorServerDbError("create failed: %v", err)
+			return errors.Newf(500, "DB_ERROR", "create failed: %v", err)
 		}
 		zaplog.LOG.Debug("Created product", zap.Uint("id", product.ID), zap.String("name", product.Name), zap.Int("price", product.Price))
 
 		product.Price = 4500
 		if err := db.Updates(product).Error; err != nil {
-			return ErrorServerDbError("update failed: %v", err)
+			return errors.Newf(500, "DB_ERROR", "update failed: %v", err)
 		}
 		zaplog.LOG.Debug("Updated product", zap.Uint("id", product.ID), zap.String("name", product.Name), zap.Int("price", product.Price))
 		return nil
 	})
 	if erk != nil {
-		zaplog.LOG.Error("Error", zap.Error(erk))
+		zaplog.LOG.Error("Save product failed", zap.Error(erk))
 	}
-}
-
-// ErrorServerDbError creates Kratos database operation errors
-// ErrorServerDbError 创建 Kratos 数据库操作错误
-func ErrorServerDbError(format string, args ...interface{}) *errors.Error {
-	return errors.New(500, "DB_ERROR", fmt.Sprintf(format, args...))
-}
-
-// ErrorServerDbTransactionError creates Kratos transaction-level errors
-// ErrorServerDbTransactionError 创建 Kratos 事务级错误
-func ErrorServerDbTransactionError(format string, args ...interface{}) *errors.Error {
-	return errors.New(500, "TRANSACTION_ERROR", fmt.Sprintf(format, args...))
 }
 
 // Transaction wraps gormkratos.Transaction with single-error-return pattern
@@ -82,7 +70,7 @@ func Transaction(ctx context.Context, db *gorm.DB, run func(db *gorm.DB) *errors
 		if erk != nil {
 			return erk
 		}
-		return ErrorServerDbTransactionError("transaction failed: %v", err)
+		return errors.Newf(500, "TRANSACTION_ERROR", "transaction failed: %v", err)
 	}
 	return nil
 }

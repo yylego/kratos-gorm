@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
           cache: true
@@ -27,11 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.25.x", "stable" ]
+        go: [ "1.27.x", "stable" ]
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -42,7 +42,7 @@ jobs:
           go-version-input: ${{ matrix.go }}
           repo-checkout: false
           go-package: ./...
-        continue-on-error: true  # 报错时允许工作流继续执行，因为项目依赖的底层包也会有错，很难做到百分百没问题,只打印检测结果就行
+        continue-on-error: true  # 报错时允许工作流继续执行，因为项目依赖的底层包也会有错，很难做到百分百没问题，只打印检测结果就行
 
       - name: Run test
         run: make test COVERAGE_DIR=/tmp/coverage
